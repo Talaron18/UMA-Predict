@@ -22,12 +22,10 @@ class RaceDataDumper:
             df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
         else:
             df = pd.read_parquet(self.input_file)
-        numeric_cols = ["last_3f", "odds", "popularity", "horse_weight", "horse_weight_diff", "weight_carried"]
+        numeric_cols = ["last_3f", "odds", "popularity", "horse_weight", "horse_weight_diff", "weight_carried", "margin"]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        if "margin" in df.columns:
-            df["margin"] = pd.to_numeric(df["margin"], errors='coerce')
         if "time" in df.columns:
             def time_to_seconds(t):
                 try:
@@ -38,22 +36,39 @@ class RaceDataDumper:
                 except:
                     return None
             df["time_secs"] = df["time"].apply(time_to_seconds)
-    
-        df = df.fillna(0)
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.sort_values(["horse_id", "date"])
+
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["horse_id", "race_id", "date"])
+
+        # Keep one row per horse-race pair to prevent duplicate sequence samples.
+        df = df.drop_duplicates(subset=["horse_id", "race_id"], keep="last")
+
+        # Fill only numeric features; keep text columns as-is to avoid artificial categorical collisions.
+        existing_numeric_cols = [c for c in numeric_cols if c in df.columns]
+        if existing_numeric_cols:
+            df[existing_numeric_cols] = df[existing_numeric_cols].fillna(0)
+
+        sort_cols = ["horse_id", "date"]
+        if "race_id" in df.columns:
+            sort_cols.append("race_id")
+        df = df.sort_values(sort_cols)
         
         return df
 
     @staticmethod
     def _process_horse_group(group: pd.DataFrame) -> Tuple[List[Dict], List[Dict]]:
-        group = group.sort_values("date").reset_index(drop=True)
+        sort_cols = ["date"]
+        if "race_id" in group.columns:
+            sort_cols.append("race_id")
+        group = group.sort_values(sort_cols).reset_index(drop=True)
         horse_sequences = []
         race_features = []
 
         for idx, row in group.iterrows():
             history = []
-            past_races = group[group["date"] < row["date"]]
+            # Use positional history to include earlier same-day races (after sorting),
+            # which avoids many identical histories caused by date-only filtering.
+            past_races = group.iloc[:idx]
             
             for _, past in past_races.iterrows():
                 history.append({
@@ -124,8 +139,11 @@ class RaceDataDumper:
                 for future in as_completed(futures):
                     try:
                         seq, feat = future.result()
-                        horse_sequences_all.extend(seq)
-                        race_features_all.extend(feat)
+                        # Keep only the last (longest-history) sample per horse.
+                        if seq:
+                            horse_sequences_all.append(seq[-1])
+                        if feat:
+                            race_features_all.append(feat[-1])
                     except Exception as e:
                         logger.error(f"Error processing group: {e}")
                     finally:
