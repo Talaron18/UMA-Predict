@@ -1,4 +1,4 @@
 *.parquet
 *.swp
 .env
-store/
+datastore1/

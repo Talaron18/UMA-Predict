@@ -1,3 +1,9 @@
+"""
+
+IF YOU CHOOSE TO USE THIS MODULE TO GATHER YOUR DATA, PLEASE SELECT DATA_STORE0.PY TO BUILD THE DATASTORE
+
+"""
+
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
@@ -34,7 +40,6 @@ def extract_id(text, pattern):
 
 def parse_race_page(html_text, race_id, race_date):
     soup = BeautifulSoup(html_text, "html.parser")
-    # 提取环境信息
     intro = soup.find("div", class_="data_intro")
     surface, direction, distance, weather, track_cond = [None]*5
     if intro and intro.find("span"):
@@ -143,7 +148,7 @@ def run_batch_scrape(start_year, end_year, mode):
     for year in range(start_year, end_year + 1):
         dates = pd.date_range(f"{year}-01-01", f"{year}-12-31")
         for day in dates:
-            if day.weekday() < 5: continue # 只看周六日
+            if day.weekday() < 5: continue 
             
             date_str = day.strftime("%Y%m%d")
             url = f"https://db.netkeiba.com/race/list/{date_str}/"
@@ -151,8 +156,6 @@ def run_batch_scrape(start_year, end_year, mode):
                 res = requests.get(url, headers=HEADERS, timeout=10)
                 res.encoding = "EUC-JP"
                 soup = BeautifulSoup(res.text, "html.parser")
-                
-                # 筛选重赏赛 ID
                 graded_ids = []
                 for a in soup.find_all("a", href=re.compile(r"^/race/\d+/$")):
                     if any(g in a.get_text() for g in ["(G1)","(G2)","(G3)","(GI)","(GII)","(GIII)"]):
@@ -184,9 +187,9 @@ def run_batch_scrape(start_year, end_year, mode):
         elif mode == "pay":
             output_file = f"payoff_{start_year}_{end_year}.parquet"
         final_df.to_parquet(output_file, index=False, engine='pyarrow')
-        print(f"成功保存至: {output_file}，共 {len(final_df)} 条记录")
+        print(f"Saving to: {output_file}, {len(final_df)} records")
     else:
-        print("未抓取到任何重赏数据")
+        print("No G-race data collected")
 
 if __name__ == "__main__":
     mode = input("crawling option: ")
