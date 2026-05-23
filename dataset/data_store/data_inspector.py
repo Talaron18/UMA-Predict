@@ -42,6 +42,6 @@ def inspect_horse_bin_data(store_root: str, horse_id: str):
     print("=" * 60)
 
 if __name__ == "__main__":
-    STORE_ROOT = "../../data/datastore1"
+    STORE_ROOT = "data/datastore"
     TARGET_HORSE = "2007103143" 
     inspect_horse_bin_data(store_root=STORE_ROOT, horse_id=TARGET_HORSE)

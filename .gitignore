@@ -1,4 +1,6 @@
 *.parquet
 *.swp
-.env
+*.env
+*.pyc
 datastore1/
+datastore/
